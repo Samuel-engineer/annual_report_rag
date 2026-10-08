@@ -110,7 +110,9 @@ def test_retrieve_filings_excels_applies_filters_and_closes_browser(
         def __enter__(self) -> Any:
             return SimpleNamespace(
                 chromium=SimpleNamespace(
-                    launch=lambda: calls.append(("launch", True)) or FakeBrowser()
+                    launch=lambda **kwargs: (
+                        calls.append(("launch", kwargs)) or FakeBrowser()
+                    )
                 )
             )
 
@@ -143,6 +145,10 @@ def test_retrieve_filings_excels_applies_filters_and_closes_browser(
     assert ("#filingDateFrom", "2020-01-01") in calls
     assert (
         "new_page",
-        {"accept_downloads": True, "user_agent": "test-agent"},
+        {
+            "accept_downloads": True,
+            "user_agent": "test-agent",
+            "javascript_enabled": True,
+        },
     ) in calls
     assert ("browser_closed", True) in calls

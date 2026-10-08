@@ -27,11 +27,22 @@ def retrieve_filings_excels(
 ) -> dict[str, bytes]:
     """Télécharge les exports Excel pour chaque filtre demandé dans la même session."""
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
+        browser = playwright.chromium.launch(
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",  # Pas de GPU sur Lambda
+                "--single-process",  # Évite les multi-processus instables sur Lambda
+                "--no-zygote",
+                "--disable-extensions",  # Désactive les extensions pour éviter les conflits
+            ],
+        )
         try:
             page = browser.new_page(
                 accept_downloads=True,
                 user_agent=user_agent,
+                javascript_enabled=True,
             )
             page.goto(url, wait_until="domcontentloaded")
 
