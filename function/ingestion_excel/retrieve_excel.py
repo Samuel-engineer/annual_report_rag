@@ -28,7 +28,6 @@ def retrieve_filings_excels(
     """Télécharge les exports Excel pour chaque filtre demandé dans la même session."""
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(
-            headless=True,
             args=[
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
