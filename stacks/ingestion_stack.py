@@ -30,7 +30,7 @@ class IngestionStack(Stack):
         self.raw_bucket = s3.Bucket(
             self,
             "RawBucket",
-            bucket_name="annual-report-bucket",  # Remplacez par un nom unique
+            bucket_name=f"annual-report-bucket-{self.account}-{self.region}",  # Remplacez par un nom unique
             removal_policy=RemovalPolicy.DESTROY,  # Supprime le bucket lors de la destruction du stack
             auto_delete_objects=True,  # Supprime les objets lors de la destruction du bucket*
         )
@@ -38,7 +38,7 @@ class IngestionStack(Stack):
         self.excel_bucket = s3.Bucket(
             self,
             "ExcelBucket",
-            bucket_name="excel-bucket",  # Remplacez par un nom unique
+            bucket_name=f"excel-bucket-{self.account}-{self.region}",  # Remplacez par un nom unique
             removal_policy=RemovalPolicy.DESTROY,  # Supprime le bucket lors de la destruction du stack
             auto_delete_objects=True,  # Supprime les objets lors de la destruction du bucket*
         )
