@@ -1,16 +1,25 @@
 import os
 
 from aws_cdk import (
-    Stack,
-    aws_lambda as _lambda,
-    aws_s3 as s3,
-    aws_s3_notifications as s3_notifications,
-    aws_events as events,
-    aws_events_targets as targets,
     Duration,
     RemovalPolicy,
+    Stack,
 )
-
+from aws_cdk import (
+    aws_events as events,
+)
+from aws_cdk import (
+    aws_events_targets as targets,
+)
+from aws_cdk import (
+    aws_lambda as _lambda,
+)
+from aws_cdk import (
+    aws_s3 as s3,
+)
+from aws_cdk import (
+    aws_s3_notifications as s3_notifications,
+)
 from constructs import Construct
 
 
