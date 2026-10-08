@@ -148,7 +148,7 @@ def test_retrieve_filings_excels_applies_filters_and_closes_browser(
         {
             "accept_downloads": True,
             "user_agent": "test-agent",
-            "javascript_enabled": True,
+            "java_script_enabled": True,
         },
     ) in calls
     assert ("browser_closed", True) in calls
