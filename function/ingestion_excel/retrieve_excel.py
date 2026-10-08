@@ -29,9 +29,10 @@ def retrieve_filings_excels(
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(
             headless=True,
-            args=["--no-sandbox", 
-                  "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
                 "--disable-gpu",  # Pas de GPU sur Lambda
                 "--single-process",  # Évite les multi-processus instables sur Lambda
                 "--no-zygote",
