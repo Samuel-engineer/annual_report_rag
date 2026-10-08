@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Any
 
@@ -6,6 +7,9 @@ import boto3
 from .excel_utils import filing_rows
 from .s3_utils import company_from_excel_key, excel_object_from_record
 from .sec_utils import download_filing, filing_filename
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 s3_client = boto3.client("s3")
 
@@ -38,6 +42,8 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, int]:
     if not raw_bucket:
         raise RuntimeError("RAW_BUCKET_NAME must be configured.")
 
+    logger.info("Received event, processing S3 records")
+
     records = event.get("Records")
     if not isinstance(records, list) or not records:
         raise ValueError("Expected an S3 ObjectCreated event with at least one record.")
@@ -46,5 +52,7 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, int]:
     for record in records:
         bucket, key = excel_object_from_record(record)
         documents_uploaded += _process_excel_object(bucket, key, raw_bucket)
+
+    logger.info("Total documents uploaded: %d", documents_uploaded)
 
     return {"documents_uploaded": documents_uploaded}

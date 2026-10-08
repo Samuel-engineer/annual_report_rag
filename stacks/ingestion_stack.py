@@ -15,6 +15,9 @@ from aws_cdk import (
     aws_lambda as _lambda,
 )
 from aws_cdk import (
+    aws_logs as logs,
+)
+from aws_cdk import (
     aws_s3 as s3,
 )
 from aws_cdk import (
@@ -26,6 +29,13 @@ from constructs import Construct
 class IngestionStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
+
+        log_group = logs.LogGroup(
+            self,
+            "IngestionLogGroup",
+            log_group_name="/aws/lambda/ingestion-log-group",
+            removal_policy=RemovalPolicy.DESTROY,
+        )
 
         self.raw_bucket = s3.Bucket(
             self,
@@ -56,6 +66,7 @@ class IngestionStack(Stack):
                     "annual-report-rag/0.1.0 (SEC filings ingestion)",
                 ),
             },
+            log_group=log_group,
             timeout=Duration.minutes(15),
             memory_size=2048,
         )
@@ -75,6 +86,7 @@ class IngestionStack(Stack):
             },
             timeout=Duration.minutes(15),
             memory_size=1024,
+            log_group=log_group,
         )
         self.excel_bucket.grant_read(self.ingestion_doc_lambda)
         self.raw_bucket.grant_put(self.ingestion_doc_lambda)
@@ -88,7 +100,7 @@ class IngestionStack(Stack):
         rule = events.Rule(
             self,
             "IngestionScheduleRule",
-            schedule=events.Schedule.rate(Duration.minutes(2)),
+            schedule=events.Schedule.rate(Duration.minutes(1)),
         )
         rule.add_target(
             targets.LambdaFunction(

@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Any
 
@@ -5,6 +6,9 @@ import boto3
 
 from .retrieve_excel import retrieve_filings_excels
 from .utils import company_s3_key, get_companies, sec_browse_url
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 SEC_USER_AGENT = os.getenv(
     "SEC_USER_AGENT",
@@ -29,7 +33,9 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     company_results = {}
     for company_name, cik in get_companies(event).items():
         browse_url = sec_browse_url(cik)
+        logger.info("Processing %s (CIK: %s, url: %s)", company_name, cik, browse_url)
         company_key = company_s3_key(company_name)
+        logger.info("Company S3 key: %s", company_key)
         spreadsheets_uploaded = 0
 
         for search_value, filter_value in FILING_EXPORTS:
@@ -39,6 +45,13 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
                 filing_date_from=FILING_DATE_FROM,
                 filter_values=[filter_value],
                 user_agent=SEC_USER_AGENT,
+            )
+            logger.info(
+                "Retrieved %d exports for %s (CIK: %s) with filter '%s'",
+                len(exports),
+                company_name,
+                cik,
+                filter_value,
             )
             for export_name, workbook_bytes in exports.items():
                 s3_client.put_object(
@@ -56,5 +69,12 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
             "cik": cik,
             "spreadsheets_uploaded": spreadsheets_uploaded,
         }
+
+        logger.info(
+            "Finished processing %s (CIK: %s). Total spreadsheets uploaded: %d",
+            company_name,
+            cik,
+            spreadsheets_uploaded,
+        )
 
     return {"companies": company_results}
