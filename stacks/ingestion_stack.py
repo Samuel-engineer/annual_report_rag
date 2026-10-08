@@ -3,6 +3,7 @@ import os
 from aws_cdk import (
     Duration,
     RemovalPolicy,
+    Size,
     Stack,
 )
 from aws_cdk import (
@@ -68,7 +69,7 @@ class IngestionStack(Stack):
             },
             log_group=log_group,
             timeout=Duration.minutes(15),
-            ephemeral_storage_size=2048,
+            ephemeral_storage_size=Size.mebibytes(2048),
             memory_size=2048,
         )
         self.excel_bucket.grant_put(self.ingestion_excel_lambda)
