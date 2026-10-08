@@ -24,7 +24,7 @@ RUN dnf install -y \
     && dnf clean all
 
 # Installation de Playwright et téléchargement de Chromium
-RUN pip install --no-cache-dir boto3 "playwright==1.55.0" \
+RUN pip install --no-cache-dir boto3 playwright==1.55.0 \
     && python -m playwright install chromium \
     && chmod -R a+rX /ms-playwright
 

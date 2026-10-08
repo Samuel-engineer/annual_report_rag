@@ -42,7 +42,7 @@ def retrieve_filings_excels(
             page = browser.new_page(
                 accept_downloads=True,
                 user_agent=user_agent,
-                javascript_enabled=True,
+                java_script_enabled=True,
             )
             page.goto(url, wait_until="domcontentloaded")
 
