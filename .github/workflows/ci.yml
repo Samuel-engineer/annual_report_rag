@@ -48,7 +48,6 @@ jobs:
       # Tests unitaires
       - name: Run unit tests
         run: |
-          npm test --if-present
           uv run pytest -v
 
   # -------------------------------------------------------------
@@ -76,7 +75,6 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm ci
           uv sync --frozen
 
       # CDK utilise le virtualenv généré automatiquement par uv (.venv)
