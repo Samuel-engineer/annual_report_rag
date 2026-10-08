@@ -78,7 +78,7 @@ jobs:
           uv sync --frozen
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Validate ingestion_doc Dockerfile build
         run: docker build function/ingestion_doc
