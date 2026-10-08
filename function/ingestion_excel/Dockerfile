@@ -29,7 +29,7 @@ RUN pip install --no-cache-dir boto3 "playwright==1.55.0" \
     && chmod -R a+rX /ms-playwright
 
 # Copie du code applicatif
-COPY . ${LAMBDA_TASK_ROOT}
+COPY . ${LAMBDA_TASK_ROOT}\ingestion_excel
 
 # Point d'entrée
-CMD ["main.lambda_handler"]
+CMD ["ingestion_excel.main.lambda_handler"]
