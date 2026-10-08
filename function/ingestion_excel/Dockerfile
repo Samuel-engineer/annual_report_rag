@@ -1,4 +1,4 @@
-FROM public.ecr.aws/lambda/python:3.13
+FROM public.ecr.aws/lambda/python:3.12
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 

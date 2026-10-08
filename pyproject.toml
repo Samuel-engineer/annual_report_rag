@@ -19,3 +19,9 @@ dev = [
     "ruff>=0.16.10",
     "pytest-cov>=7.1.0",
 ]
+
+[tool.uv.workspace]
+members = [
+    "function/ingestion_excel",
+    "function/ingestion_doc",
+]
