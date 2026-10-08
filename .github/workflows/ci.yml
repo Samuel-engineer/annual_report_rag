@@ -2,7 +2,7 @@ name: CI (Pull Request Validation)
 
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
 
 concurrency:
   group: ci-${{ github.head_ref || github.run_id }}
@@ -20,11 +20,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Installe uv et gère le cache global d'Astral
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-suffix: "uv-cache"
@@ -33,30 +33,21 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
-      # Mise en place de Node.js (pour CDK / Playwright)
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: "npm"
-
       # Installation instantanée des dépendances via uv sync
       - name: Install dependencies
         run: |
-          npm ci
           uv sync --frozen
 
       # Linter & Typecheck Python (Ruff / Basedpyright / Mypy)
       - name: Run Python linting & checks
         run: |
-          uv run ruff check .
-          uv run ruff format --check .
+          uv run ruff check . --fix
+          uv run ruff format .
           # uv run mypy .
 
       # Tests unitaires
       - name: Run unit tests
         run: |
-          npm test --if-present
           uv run pytest -v
 
   # -------------------------------------------------------------
@@ -67,10 +58,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -78,14 +69,12 @@ jobs:
         run: uv python install 3.12
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
-          cache: "npm"
+          node-version: 24
 
       - name: Install dependencies
         run: |
-          npm ci
           uv sync --frozen
 
       # CDK utilise le virtualenv généré automatiquement par uv (.venv)

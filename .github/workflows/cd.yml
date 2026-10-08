@@ -1,0 +1,47 @@
+name: CD (Push Action)
+
+on:
+  push:
+    branches: [master]
+
+concurrency:
+  group: cd-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  # -------------------------------------------------------------
+  # Job : Deploy CDK
+  # -------------------------------------------------------------
+  deploy:
+    name: deploy to AWS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: |
+          uv sync --frozen
+
+      # CDK utilise le virtualenv généré automatiquement par uv (.venv)
+      - name: CDK deploy
+        run: |
+          source .venv/bin/activate
+          npx cdk deploy --require-approval never --all
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
