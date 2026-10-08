@@ -18,9 +18,9 @@ def _make_workbook() -> bytes:
         raise AssertionError("Workbook did not create an active worksheet.")
     worksheet.append(["Filings URL", "Reporting Date"])
     worksheet.append(["Open filing", date(2024, 9, 30)])
-    worksheet["A2"].hyperlink = (
-        "https://www.sec.gov/Archives/edgar/data/1018724/filing.htm"
-    )
+    worksheet[
+        "A2"
+    ].hyperlink = "https://www.sec.gov/Archives/edgar/data/1018724/filing.htm"
     stream = BytesIO()
     workbook.save(stream)
     return stream.getvalue()
@@ -100,10 +100,7 @@ def test_ingestion_doc_reads_excel_and_uploads_filings(
         def get_object(self, **kwargs: Any) -> dict[str, Any]:
             assert kwargs == {
                 "Bucket": "excel-bucket",
-                "Key": (
-                    "sec_filings/Amazon/0001018724/"
-                    "annualOrQuarterlyReports.xlsx"
-                ),
+                "Key": ("sec_filings/Amazon/0001018724/annualOrQuarterlyReports.xlsx"),
             }
             return {"Body": BytesIO(_make_workbook())}
 
@@ -149,7 +146,10 @@ def test_download_filing_rejects_non_sec_url() -> None:
 
 
 def test_filing_filename_uses_sec_path_basename() -> None:
-    assert doc_sec_utils.filing_filename(
-        "https://www.sec.gov/Archives/annual%20report.htm",
-        2,
-    ) == "annual_report.htm"
+    assert (
+        doc_sec_utils.filing_filename(
+            "https://www.sec.gov/Archives/annual%20report.htm",
+            2,
+        )
+        == "annual_report.htm"
+    )
