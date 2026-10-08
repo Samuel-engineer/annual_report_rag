@@ -2,7 +2,7 @@ name: CI (Pull Request Validation)
 
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
 
 concurrency:
   group: ci-${{ github.head_ref || github.run_id }}
