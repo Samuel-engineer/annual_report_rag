@@ -1,6 +1,7 @@
 from typing import Any, Self
 
 import pytest
+
 from function.ingestion_doc import sec_utils
 
 

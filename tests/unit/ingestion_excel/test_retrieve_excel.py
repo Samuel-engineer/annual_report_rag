@@ -3,8 +3,9 @@ from types import SimpleNamespace
 from typing import Any, Self, cast
 
 import pytest
-from function.ingestion_excel import retrieve_excel
 from playwright.sync_api import Page
+
+from function.ingestion_excel import retrieve_excel
 
 
 def test_download_report_selects_filter_and_saves_download(

@@ -3,8 +3,9 @@ from io import BytesIO
 from typing import Any
 
 import pytest
-from function.ingestion_doc import excel_utils
 from openpyxl import Workbook
+
+from function.ingestion_doc import excel_utils
 
 
 @pytest.mark.parametrize(

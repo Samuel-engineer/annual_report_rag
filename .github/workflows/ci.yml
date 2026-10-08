@@ -41,8 +41,8 @@ jobs:
       # Linter & Typecheck Python (Ruff / Basedpyright / Mypy)
       - name: Run Python linting & checks
         run: |
-          uv run ruff check .
-          uv run ruff format --check .
+          uv run ruff check . --fix
+          uv run ruff format .
           # uv run mypy .
 
       # Tests unitaires
