@@ -83,7 +83,6 @@ class IngestionStack(Stack):
             ephemeral_storage_size=Size.mebibytes(1028),
             memory_size=1024,
             log_group=log_group,
-            reserved_concurrent_executions=1,
         )
         self.excel_bucket.grant_read(self.ingestion_doc_lambda)
         self.raw_bucket.grant_put(self.ingestion_doc_lambda)
