@@ -1,5 +1,3 @@
-import os
-
 from aws_cdk import (
     Duration,
     RemovalPolicy,
@@ -54,61 +52,58 @@ class IngestionStack(Stack):
             auto_delete_objects=True,  # Supprime les objets lors de la destruction du bucket*
         )
 
-        # The first Lambda queries SEC and writes the resulting Excel exports.
-        self.ingestion_excel_lambda = _lambda.DockerImageFunction(
+        # The first Lambda saves SEC submissions JSON files to S3.
+        self.ingestion_json_lambda = _lambda.Function(
             self,
-            "IngestionHandler",
-            code=_lambda.DockerImageCode.from_image_asset("function/ingestion_excel"),
+            "IngestionHandler1",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="ingestion_json.main.lambda_handler",
+            code=_lambda.Code.from_asset("function/"),
             environment={
                 "EXCEL_BUCKET_NAME": self.excel_bucket.bucket_name,
-                "FILING_DATE_FROM": os.getenv("FILING_DATE_FROM", "2020-01-01"),
-                "SEC_USER_AGENT": os.getenv(
-                    "SEC_USER_AGENT",
-                    "annual-report-rag/0.1.0 (SEC filings ingestion)",
-                ),
             },
-            log_group=log_group,
             timeout=Duration.minutes(15),
-            ephemeral_storage_size=Size.mebibytes(2048),
+            ephemeral_storage_size=Size.mebibytes(1028),
             memory_size=2048,
+            log_group=log_group,
         )
-        self.excel_bucket.grant_put(self.ingestion_excel_lambda)
+        self.excel_bucket.grant_put(self.ingestion_json_lambda)
 
-        # The second Lambda is triggered for each export and ingests its filings.
-        self.ingestion_doc_lambda = _lambda.DockerImageFunction(
+        # The second Lambda downloads supported filings from submissions JSON.
+        self.ingestion_doc_lambda = _lambda.Function(
             self,
             "IngestionHandler2",
-            code=_lambda.DockerImageCode.from_image_asset("function/ingestion_doc"),
+            code=_lambda.Code.from_asset("function/"),
+            handler="ingestion_doc.main.lambda_handler",
+            runtime=_lambda.Runtime.PYTHON_3_12,
             environment={
                 "RAW_BUCKET_NAME": self.raw_bucket.bucket_name,
-                "SEC_USER_AGENT": os.getenv(
-                    "SEC_USER_AGENT",
-                    "annual-report-rag/0.1.0 (SEC filings ingestion)",
-                ),
             },
             timeout=Duration.minutes(15),
+            ephemeral_storage_size=Size.mebibytes(1028),
             memory_size=1024,
             log_group=log_group,
+            reserved_concurrent_executions=1,
         )
         self.excel_bucket.grant_read(self.ingestion_doc_lambda)
         self.raw_bucket.grant_put(self.ingestion_doc_lambda)
         self.excel_bucket.add_event_notification(
             s3.EventType.OBJECT_CREATED,
             s3_notifications.LambdaDestination(self.ingestion_doc_lambda),
-            s3.NotificationKeyFilter(prefix="sec_filings/", suffix=".xlsx"),
+            s3.NotificationKeyFilter(suffix=".json"),
         )
 
         # The scheduled invocation uses the same payload shape as manual invocations.
         rule = events.Rule(
             self,
             "IngestionScheduleRule",
-            schedule=events.Schedule.rate(Duration.minutes(1)),
+            schedule=events.Schedule.rate(Duration.minutes(2)),
         )
         rule.add_target(
             targets.LambdaFunction(
-                self.ingestion_excel_lambda,
+                self.ingestion_json_lambda,
                 event=events.RuleTargetInput.from_object(
-                    {"companies": {"Amazon": "1018724"}}
+                    {"enterprises": {"Amazon": "1018724"}}
                 ),
             )
         )

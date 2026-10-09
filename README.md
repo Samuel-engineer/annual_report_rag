@@ -1,44 +1,55 @@
-# SEC filings ingestion
+# SEC submissions ingestion
 
-La Lambda `ingestion_excel` accepte un événement JSON associant chaque nom
-d'entreprise à son CIK SEC :
+La Lambda `ingestion_json` accepte les CIK SEC des entreprises dans un
+événement JSON :
 
 ```json
 {
-  "companies": {
+  "enterprises": {
     "Amazon": "1018724",
     "Microsoft": "789019"
   }
 }
 ```
 
-Elle télécharge les exports 10-K et DEF 14A depuis la page SEC de chaque CIK
-et les archive dans le bucket Excel. Une notification S3 déclenche ensuite la
-Lambda `ingestion_doc`, qui lit chaque classeur, télécharge chaque URL de la
-colonne `Filings URL`, puis dépose les documents dans le bucket raw sous la
-forme `{année Reporting Date}/{entreprise}/{nom du fichier}`.
+Pour chaque entreprise, elle normalise le CIK sur 10 chiffres, appelle
+`https://data.sec.gov/submissions/CIK{cik}.json` et dépose le JSON SEC brut dans
+le bucket configuré par `EXCEL_BUCKET_NAME`, sous la clé
+`{entreprise}/CIK{cik}.json` (par exemple
+`Amazon/CIK0001018724.json`). Les deux formes suivantes sont acceptées :
+`{"enterprises": {"Amazon": "1018724"}}` et un objet plat tel que
+`{"Amazon": "1018724"}`.
 
-Le CIK est normalisé sur 10 chiffres. Le nom d'entreprise utilisé dans les clés
-S3 est nettoyé pour supprimer les caractères incompatibles avec un chemin.
-La période de recherche de date de dépôt commence par défaut au `2020-01-01` ;
-elle peut être modifiée avec la variable d'environnement `FILING_DATE_FROM`.
+Les noms d'entreprise sont nettoyés avant de les utiliser dans les clés S3.
+Le fichier JSON est conservé tel que retourné par la SEC et porte le type de
+contenu `application/json`.
 
-Pour respecter les règles d'accès de la SEC, configurez `SEC_USER_AGENT` avec
-un identifiant d'application et une adresse de contact. La valeur peut être
-fournie dans l'environnement lors de la synthèse CDK.
+Pour respecter les règles d'accès de la SEC, configurez la variable
+d'environnement `SEC_USER_AGENT` avant la synthèse CDK avec un identifiant
+d'application et une adresse e-mail de contact, par exemple
+`annual-report-rag/1.0 (PrenomNom prenom.nom@domaine.com)`. La même valeur est
+transmise aux deux Lambdas pour les requêtes SEC ; l'ingestion refuse de
+continuer si elle n'inclut pas d'adresse e-mail.
 
-L'invocation EventBridge existante utilise Amazon comme événement d'exemple.
-Pour traiter d'autres entreprises, invoquez `ingestion_excel` avec le JSON
-ci-dessus. L'événement S3 transmet automatiquement chaque export à
-`ingestion_doc`.
+L'invocation EventBridge utilise Amazon comme événement d'exemple. Pour
+traiter d'autres entreprises, invoquez `ingestion_json` avec le JSON ci-dessus.
 
-Dans `function/ingestion_excel`, `main.py` orchestre la Lambda, `retrieve_excel.py`
-gère le téléchargement des exports SEC via Playwright et `utils.py` regroupe
-les utilitaires de validation du payload, de normalisation du CIK, de création
-des URLs SEC et de préparation des clés S3.
+Dans `function/ingestion_json`, `main.py` orchestre le flux, `config.py` valide
+la configuration, `utils.py` valide les entreprises et normalise les CIK,
+`sec_client.py` interroge l'API SEC, et `storage.py` prépare la clé et écrit
+le résultat dans S3.
 
-Dans `function/ingestion_doc`, `main.py` orchestre le traitement des événements
-S3 et l'écriture des documents dans le bucket raw. `excel_utils.py` extrait
-les URLs de filings et les années de reporting ; `sec_utils.py` valide et
-télécharge les URLs SEC et prépare les noms de fichiers ; `s3_utils.py` valide
-les clés d'exports et extrait le bucket et la clé des événements S3.
+La notification S3 `ObjectCreated` déclenche `ingestion_doc` pour les objets
+`.json` du bucket de métadonnées. `ingestion_doc` valide et filtre les
+formulaires 10-K et DEF 14A, reconstruit les URLs SEC, télécharge les documents
+avec `SEC_USER_AGENT` et écrit les fichiers sous
+`{année}/{CIK sans zéros}/annual_report_{document}` pour les 10-K ou
+`{année}/{CIK sans zéros}/proxy_statement_{document}` pour les DEF 14A dans
+le bucket `RAW_BUCKET_NAME`. Les requêtes sont espacées d'au moins 0,11 seconde
+et la concurrence Lambda est limitée à une instance. Chaque objet brut porte
+les métadonnées `form`, `filingDate` et `accessionNumber`.
+
+Dans `function/ingestion_doc`, `main.py` orchestre le traitement, `filings.py`
+valide et transforme les tableaux SEC en dépôts individuels, `sec_client.py`
+gère les téléchargements, gzip et la limitation de débit, et `storage.py`
+centralise la lecture/écriture S3.
