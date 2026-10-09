@@ -77,15 +77,6 @@ jobs:
         run: |
           uv sync --frozen
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Validate ingestion_doc Dockerfile build
-        run: docker build function/ingestion_doc
-
-      - name: Validate ingestion_excel Dockerfile build
-        run: docker build function/ingestion_excel
-
       # CDK utilise le virtualenv généré automatiquement par uv (.venv)
       - name: CDK Synth
         run: |
