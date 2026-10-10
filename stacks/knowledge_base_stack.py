@@ -15,9 +15,7 @@ from aws_cdk import (
 from aws_cdk import (
     aws_s3 as s3,
 )
-
 from constructs import Construct
-
 
 from .config import Settings
 
@@ -54,7 +52,7 @@ class KnowledgeBaseStack(Stack):
                 resources=[
                     f"arn:aws:bedrock:*::foundation-model/{cfg.embedding_model_id}",
                     f"arn:aws:bedrock:*:{self.account}:inference-profile/us.{cfg.embedding_model_id}",
-                    f"arn:aws:bedrock:*:{self.account}:inference-profile/global.{cfg.embedding_model_id}"
+                    f"arn:aws:bedrock:*:{self.account}:inference-profile/global.{cfg.embedding_model_id}",
                 ],
             )
         )
