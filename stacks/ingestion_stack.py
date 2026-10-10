@@ -63,8 +63,8 @@ class IngestionStack(Stack):
                 "EXCEL_BUCKET_NAME": self.excel_bucket.bucket_name,
             },
             timeout=Duration.minutes(15),
-            ephemeral_storage_size=Size.mebibytes(1028),
-            memory_size=2048,
+            ephemeral_storage_size=Size.mebibytes(512),
+            memory_size=512,
             log_group=log_group,
         )
         self.excel_bucket.grant_put(self.ingestion_json_lambda)
@@ -80,8 +80,8 @@ class IngestionStack(Stack):
                 "RAW_BUCKET_NAME": self.raw_bucket.bucket_name,
             },
             timeout=Duration.minutes(15),
-            ephemeral_storage_size=Size.mebibytes(1028),
-            memory_size=1024,
+            ephemeral_storage_size=Size.mebibytes(512),
+            memory_size=512,
             log_group=log_group,
         )
         self.excel_bucket.grant_read(self.ingestion_doc_lambda)
