@@ -16,7 +16,7 @@ KnowledgeBaseStack(
     app,
     "KnowledgeBaseStack",
     collection=aoss_stack.collection,
-    bucket=ingestion_stack.excel_bucket,
+    bucket=ingestion_stack.raw_bucket,
     env=env,
 )
 
