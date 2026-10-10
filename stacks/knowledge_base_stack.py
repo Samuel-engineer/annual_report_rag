@@ -15,7 +15,9 @@ from aws_cdk import (
 from aws_cdk import (
     aws_s3 as s3,
 )
+
 from constructs import Construct
+
 
 from .config import Settings
 
@@ -50,7 +52,9 @@ class KnowledgeBaseStack(Stack):
             iam.PolicyStatement(
                 actions=["bedrock:InvokeModel"],
                 resources=[
-                    f"arn:aws:bedrock:{self.region}::foundation-model/{cfg.embedding_model_id}"
+                    f"arn:aws:bedrock:*::foundation-model/{cfg.embedding_model_id}",
+                    f"arn:aws:bedrock:*:{self.account}:inference-profile/us.{cfg.embedding_model_id}",
+                    f"arn:aws:bedrock:*:{self.account}:inference-profile/global.{cfg.embedding_model_id}"
                 ],
             )
         )
@@ -127,6 +131,10 @@ class KnowledgeBaseStack(Stack):
 
         # La KB attend à la fois la ressource et la politique
         self.knowledge_base.add_resource_dependency(data_access_policy)
+        # Utilise try_find_child pour éviter un crash si l'ID interne change ou n'est pas encore instancié
+        default_policy = self.kb_role.node.try_find_child("DefaultPolicy")
+        if default_policy:
+            self.knowledge_base.node.add_dependency(default_policy)
 
         # 5. Source de données rattachée au bucket S3
         self.data_source = bedrock.CfnDataSource(

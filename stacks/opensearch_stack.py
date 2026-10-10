@@ -123,7 +123,8 @@ class OpenSearchStack(Stack):
             index_name=index_name,
             settings=oss.CfnIndex.IndexSettingsProperty(
                 index=oss.CfnIndex.IndexProperty(
-                    knn=True, knn_algo_param_ef_search=100
+                    knn=True, 
+                    knn_algo_param_ef_search=100
                 ),
                 analysis=oss.CfnIndex.AnalysisProperty(
                     analyzer={
