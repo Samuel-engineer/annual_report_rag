@@ -1,3 +1,4 @@
+import os
 from collections.abc import Iterator
 from datetime import date
 from io import BytesIO
@@ -7,6 +8,8 @@ import boto3
 import pytest
 from moto import mock_aws
 from openpyxl import Workbook
+
+os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
 
 
 @pytest.fixture
