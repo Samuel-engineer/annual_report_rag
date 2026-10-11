@@ -18,6 +18,7 @@ class Filing:
     accession_number: str
     cik: str
     primary_document: str
+    reporting_date: date | None = None
 
     @property
     def archive_url(self) -> str:
@@ -25,6 +26,14 @@ class Filing:
             cik_raw=str(int(self.cik)),
             accession_nodash=self.accession_number.replace("-", ""),
             primary_doc=quote(self.primary_document, safe=""),
+        )
+
+    @property
+    def index_url(self) -> str:
+        return (
+            "https://www.sec.gov/Archives/edgar/data/"
+            f"{int(self.cik)}/{self.accession_number.replace('-', '')}/"
+            f"{self.accession_number}-index.htm"
         )
 
     @property
@@ -37,13 +46,20 @@ class Filing:
                 f"Invalid primary document for accession {self.accession_number!r}."
             )
         prefix = SUPPORTED_FORMS[self.form]
+        accession = self.accession_number.replace("-", "")
         if prefix == "10K":
-            return f"{self.filing_date.year}/{int(self.cik)!s}/annual_report_{filename}"
+            return (
+                f"{self.filing_date.year}/{int(self.cik)!s}/"
+                f"annual_report_{accession}_{filename}"
+            )
         if prefix == "DEF14A":
             return (
-                f"{self.filing_date.year}/{int(self.cik)!s}/proxy_statement_{filename}"
+                f"{self.filing_date.year}/{int(self.cik)!s}/"
+                f"proxy_statement_{accession}_{filename}"
             )
-        return f"{self.filing_date.year}/{int(self.cik)!s}/{prefix}_{filename}"
+        return (
+            f"{self.filing_date.year}/{int(self.cik)!s}/{prefix}_{accession}_{filename}"
+        )
 
 
 def extract_filings(payload: Any) -> list[Filing]:
@@ -74,6 +90,14 @@ def extract_filings(payload: Any) -> list[Filing]:
     if any(len(values) != row_count for values in columns.values()):
         raise ValueError("SEC filing arrays have different lengths.")
 
+    report_dates = recent.get("reportDate")
+    if report_dates is None:
+        report_dates = [None] * row_count
+    elif not isinstance(report_dates, list):
+        raise TypeError("SEC filings.recent has an invalid 'reportDate' list.")
+    elif len(report_dates) != row_count:
+        raise ValueError("SEC filing arrays have different lengths.")
+
     result: list[Filing] = []
     for index, form_value in enumerate(columns["form"]):
         if not isinstance(form_value, str):
@@ -93,6 +117,19 @@ def extract_filings(payload: Any) -> list[Filing]:
                 f"SEC filing at index {index} has an invalid filingDate: "
                 f"{filing_date_value!r}"
             ) from error
+        report_date_value = report_dates[index]
+        if report_date_value in (None, ""):
+            reporting_date = None
+        elif not isinstance(report_date_value, str):
+            raise TypeError(f"SEC filing at index {index} has an invalid reportDate.")
+        else:
+            try:
+                reporting_date = date.fromisoformat(report_date_value)
+            except ValueError as error:
+                raise ValueError(
+                    f"SEC filing at index {index} has an invalid reportDate: "
+                    f"{report_date_value!r}"
+                ) from error
         if not isinstance(accession_value, str) or not ACCESSION_PATTERN.fullmatch(
             accession_value
         ):
@@ -117,6 +154,7 @@ def extract_filings(payload: Any) -> list[Filing]:
                 accession_number=accession_value,
                 cik=cik,
                 primary_document=primary_document_value,
+                reporting_date=reporting_date,
             )
         )
     return result

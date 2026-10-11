@@ -1,15 +1,4 @@
-from aws_cdk import (
-    Duration,
-    RemovalPolicy,
-    Size,
-    Stack,
-)
-from aws_cdk import (
-    aws_events as events,
-)
-from aws_cdk import (
-    aws_events_targets as targets,
-)
+from aws_cdk import Duration, RemovalPolicy, Size, Stack
 from aws_cdk import (
     aws_lambda as _lambda,
 )
@@ -18,9 +7,6 @@ from aws_cdk import (
 )
 from aws_cdk import (
     aws_s3 as s3,
-)
-from aws_cdk import (
-    aws_s3_notifications as s3_notifications,
 )
 from constructs import Construct
 
@@ -77,6 +63,7 @@ class IngestionStack(Stack):
             handler="ingestion_doc.main.lambda_handler",
             runtime=_lambda.Runtime.PYTHON_3_12,
             environment={
+                "EXCEL_BUCKET_NAME": self.excel_bucket.bucket_name,
                 "RAW_BUCKET_NAME": self.raw_bucket.bucket_name,
             },
             timeout=Duration.minutes(15),
@@ -86,23 +73,4 @@ class IngestionStack(Stack):
         )
         self.excel_bucket.grant_read(self.ingestion_doc_lambda)
         self.raw_bucket.grant_put(self.ingestion_doc_lambda)
-        self.excel_bucket.add_event_notification(
-            s3.EventType.OBJECT_CREATED,
-            s3_notifications.LambdaDestination(self.ingestion_doc_lambda),
-            s3.NotificationKeyFilter(suffix=".json"),
-        )
-
-        # The scheduled invocation uses the same payload shape as manual invocations.
-        rule = events.Rule(
-            self,
-            "IngestionScheduleRule",
-            schedule=events.Schedule.rate(Duration.minutes(2)),
-        )
-        rule.add_target(
-            targets.LambdaFunction(
-                self.ingestion_json_lambda,
-                event=events.RuleTargetInput.from_object(
-                    {"enterprises": {"Amazon": "1018724"}}
-                ),
-            )
-        )
+        self.raw_bucket.grant_read(self.ingestion_doc_lambda)

@@ -1,5 +1,3 @@
-from typing import Any
-
 import pytest
 
 from function.ingestion_json import config, main
@@ -9,14 +7,9 @@ SEC_USER_AGENT = "AnnualReportRag/1.0 (test@example.com)"
 
 def test_handler_fetches_and_uploads_each_enterprise_submissions_document(
     monkeypatch: pytest.MonkeyPatch,
+    moto_s3_client,
 ) -> None:
-    uploaded_objects: list[dict[str, Any]] = []
     request_calls: list[tuple[str, str]] = []
-
-    class FakeS3Client:
-        def put_object(self, **kwargs: Any) -> dict[str, str]:
-            uploaded_objects.append(kwargs)
-            return {}
 
     def fake_fetch(cik: str, user_agent: str) -> bytes:
         request_calls.append((cik, user_agent))
@@ -27,7 +20,7 @@ def test_handler_fetches_and_uploads_each_enterprise_submissions_document(
         sec_user_agent=SEC_USER_AGENT,
     )
     monkeypatch.setattr(main, "get_settings", lambda: settings)
-    monkeypatch.setattr(main, "s3_client", FakeS3Client())
+    monkeypatch.setattr(main, "s3_client", moto_s3_client)
     monkeypatch.setattr(main, "fetch_submissions", fake_fetch)
 
     result = main.lambda_handler(
@@ -40,32 +33,38 @@ def test_handler_fetches_and_uploads_each_enterprise_submissions_document(
         ("0000789019", SEC_USER_AGENT),
     ]
     assert result == {
-        "enterprises": {
-            "Amazon": {
-                "cik": "0001018724",
+        "submissions": [
+            {
+                "enterprise": "Amazon",
                 "bucket": "excel-bucket",
                 "key": "Amazon/CIK0001018724.json",
             },
-            "Société Amazon!": {
-                "cik": "0000789019",
+            {
+                "enterprise": "Société Amazon!",
                 "bucket": "excel-bucket",
                 "key": "Societe_Amazon/CIK0000789019.json",
             },
-        }
+        ],
     }
-    assert uploaded_objects == [
-        {
-            "Bucket": "excel-bucket",
-            "Key": "Amazon/CIK0001018724.json",
-            "Body": b'{"cik": "0001018724"}',
-            "ContentType": "application/json",
-        },
-        {
-            "Bucket": "excel-bucket",
-            "Key": "Societe_Amazon/CIK0000789019.json",
-            "Body": b'{"cik": "0000789019"}',
-            "ContentType": "application/json",
-        },
+    assert [
+        moto_s3_client.get_object(Bucket="excel-bucket", Key=key)["Body"].read()
+        for key in (
+            "Amazon/CIK0001018724.json",
+            "Societe_Amazon/CIK0000789019.json",
+        )
+    ] == [
+        b'{"cik": "0001018724"}',
+        b'{"cik": "0000789019"}',
+    ]
+    assert [
+        moto_s3_client.head_object(Bucket="excel-bucket", Key=key)["ContentType"]
+        for key in (
+            "Amazon/CIK0001018724.json",
+            "Societe_Amazon/CIK0000789019.json",
+        )
+    ] == [
+        "application/json",
+        "application/json",
     ]
 
 

@@ -1,8 +1,24 @@
+import os
+from collections.abc import Iterator
 from datetime import date
 from io import BytesIO
+from typing import Any
 
+import boto3
 import pytest
+from moto import mock_aws
 from openpyxl import Workbook
+
+os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
+
+
+@pytest.fixture
+def moto_s3_client() -> Iterator[Any]:
+    with mock_aws():
+        client = boto3.client("s3", region_name="us-east-1")
+        for bucket in ("excel-bucket", "raw-bucket", "my-bucket"):
+            client.create_bucket(Bucket=bucket)
+        yield client
 
 
 @pytest.fixture

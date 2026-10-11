@@ -8,6 +8,7 @@ dependencies = [
     "aws-cdk-lib>=2.272.0",
     "boto3>=1.43.109",
     "constructs>=10.8.1",
+    "moto>=5.2.3",
     "openpyxl>=3.1.5",
 ]
 

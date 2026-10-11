@@ -80,42 +80,6 @@ class OpenSearchStack(Stack):
         self.collection.add_resource_dependency(self.encryption_policy)
         self.collection.add_resource_dependency(self.network_policy)
 
-        # 4. Data access policy: requise pour que CloudFormation puisse créer l'index
-        self.index_data_access_policy = oss.CfnAccessPolicy(
-            self,
-            "AossIndexCreationAccessPolicy",
-            name=f"{collection_name}-deploy-access",
-            type="data",
-            policy=json.dumps(
-                [
-                    {
-                        "Rules": [
-                            {
-                                "ResourceType": "collection",
-                                "Resource": [f"collection/{collection_name}"],
-                                "Permission": [
-                                    "aoss:CreateCollectionItems",
-                                    "aoss:DescribeCollectionItems",
-                                ],
-                            },
-                            {
-                                "ResourceType": "index",
-                                "Resource": [f"index/{collection_name}/*"],
-                                "Permission": [
-                                    "aoss:CreateIndex",
-                                    "aoss:DescribeIndex",
-                                    "aoss:UpdateIndex",
-                                ],
-                            },
-                        ],
-                        # Root du compte: couvre le rôle/l'utilisateur qui exécute le déploiement CDK
-                        "Principal": [f"arn:aws:iam::{self.account}:root"],
-                    }
-                ]
-            ),
-        )
-        self.index_data_access_policy.add_resource_dependency(self.collection)
-
         self.index = oss.CfnIndex(
             self,
             "AossVectorIndex",
@@ -160,4 +124,3 @@ class OpenSearchStack(Stack):
 
         # Collection must exist before index
         self.index.add_resource_dependency(self.collection)
-        self.index.add_resource_dependency(self.index_data_access_policy)

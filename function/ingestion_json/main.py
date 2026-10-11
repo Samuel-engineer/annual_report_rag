@@ -25,7 +25,7 @@ def get_settings() -> Settings:
 def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     cfg = get_settings()
     enterprises = get_enterprises(event)
-    results: dict[str, dict[str, str]] = {}
+    submissions: list[dict[str, str]] = []
 
     for enterprise_name, cik in enterprises.items():
         enterprise_key = enterprise_s3_key(enterprise_name)
@@ -37,11 +37,13 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
             key=key,
             body=payload,
         )
-        results[enterprise_name] = {
-            "cik": cik,
-            "bucket": cfg.excel_bucket_name,
-            "key": key,
-        }
+        submissions.append(
+            {
+                "enterprise": enterprise_name,
+                "bucket": cfg.excel_bucket_name,
+                "key": key,
+            }
+        )
         logger.info(
             "Stored SEC submissions for %s (CIK %s) at s3://%s/%s",
             enterprise_name,
@@ -50,4 +52,4 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
             key,
         )
 
-    return {"enterprises": results}
+    return {"submissions": submissions}
