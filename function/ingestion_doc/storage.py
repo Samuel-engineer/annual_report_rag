@@ -46,17 +46,16 @@ def upload_filing(
         Body=body,
         ContentType="application/octet-stream",
     )
+    raw_attributes = {
+        "enterprise": enterprise,
+        "filingDate": filing.filing_date.strftime("%d/%m/%Y"),
+        "reportingDate": (
+            filing.reporting_date.strftime("%d/%m/%Y") if filing.reporting_date else ""
+        ),
+        "filingUrl": filing.index_url,
+    }
     metadata = {
-        "metadataAttributes": {
-            "enterprise": enterprise,
-            "filingDate": filing.filing_date.strftime("%d/%m/%Y"),
-            "reportingDate": (
-                filing.reporting_date.strftime("%d/%m/%Y")
-                if filing.reporting_date
-                else ""
-            ),
-            "filingUrl": filing.index_url,
-        }
+        "metadataAttributes": {k: v for k, v in raw_attributes.items() if v != ""}
     }
     s3_client.put_object(
         Bucket=bucket_name,

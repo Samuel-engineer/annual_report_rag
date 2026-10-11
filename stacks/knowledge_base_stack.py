@@ -64,6 +64,16 @@ class KnowledgeBaseStack(Stack):
             )
         )
 
+        self.kb_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "bedrock:InvokeDataAutomationAsync",
+                    "bedrock:GetDataAutomationStatus",
+                ],
+                resources=["*"],
+            )
+        )
+
         # 3. Data Access Policy OpenSearch Serverless
         data_access_policy = oss.CfnAccessPolicy(
             self,
@@ -90,6 +100,7 @@ class KnowledgeBaseStack(Stack):
                                 "Permission": [
                                     "aoss:CreateIndex",
                                     "aoss:DescribeIndex",
+                                    "aoss:UpdateIndex",
                                     "aoss:ReadDocument",
                                     "aoss:WriteDocument",
                                     "aoss:DeleteIndex",
@@ -148,6 +159,30 @@ class KnowledgeBaseStack(Stack):
                 type="S3",
                 s3_configuration=bedrock.CfnDataSource.S3DataSourceConfigurationProperty(
                     bucket_arn=bucket.bucket_arn
+                ),
+            ),
+            vector_ingestion_configuration=bedrock.CfnDataSource.VectorIngestionConfigurationProperty(
+                parsing_configuration=bedrock.CfnDataSource.ParsingConfigurationProperty(
+                    parsing_strategy="BEDROCK_DATA_AUTOMATION",
+                    bedrock_data_automation_configuration=bedrock.CfnDataSource.BedrockDataAutomationConfigurationProperty(
+                        parsing_modality="MULTIMODAL"
+                    ),
+                ),
+                chunking_configuration=bedrock.CfnDataSource.ChunkingConfigurationProperty(
+                    chunking_strategy="HIERARCHICAL",
+                    hierarchical_chunking_configuration=bedrock.CfnDataSource.HierarchicalChunkingConfigurationProperty(
+                        level_configurations=[
+                            # Niveau 1 : Chunk Parent (contexte large conservé)
+                            bedrock.CfnDataSource.HierarchicalChunkingLevelConfigurationProperty(
+                                max_tokens=1500
+                            ),
+                            # Niveau 2 : Chunk Enfant (recherche vectorielle précise)
+                            bedrock.CfnDataSource.HierarchicalChunkingLevelConfigurationProperty(
+                                max_tokens=300
+                            ),
+                        ],
+                        overlap_tokens=60,  # ~20% du niveau enfant
+                    ),
                 ),
             ),
         )

@@ -116,7 +116,11 @@ def test_upload_filing_puts_document_and_metadata(moto_s3_client) -> None:
 
 
 def test_upload_filing_metadata_empty_reporting_date(moto_s3_client) -> None:
-    """When filing.reporting_date is None, reportingDate field in metadata is ''."""
+    """When filing.reporting_date is None, reportingDate is omitted from metadata.
+
+    Bedrock Knowledge Base rejects empty-string attribute values, so the field
+    must be absent rather than set to an empty string.
+    """
     upload_filing(
         s3_client=moto_s3_client,
         bucket_name="raw-bucket",
@@ -130,7 +134,7 @@ def test_upload_filing_metadata_empty_reporting_date(moto_s3_client) -> None:
         Key=f"{FILING_NO_REPORT_DATE.s3_key}.metadata.json",
     )
     attrs = json.loads(metadata_object["Body"].read())["metadataAttributes"]
-    assert attrs["reportingDate"] == ""
+    assert "reportingDate" not in attrs
 
 
 # ---------------------------------------------------------------------------
