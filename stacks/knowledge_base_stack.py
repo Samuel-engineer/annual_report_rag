@@ -44,6 +44,7 @@ class KnowledgeBaseStack(Stack):
 
         # Permissions S3
         bucket.grant_read(self.kb_role)
+        bucket.grant_read_write(self.kb_role, "supplemental/*")
 
         # Permissions d'invocation du modèle Titan Embeddings V2
         self.kb_role.add_to_policy(
@@ -125,7 +126,17 @@ class KnowledgeBaseStack(Stack):
             knowledge_base_configuration=bedrock.CfnKnowledgeBase.KnowledgeBaseConfigurationProperty(
                 type="VECTOR",
                 vector_knowledge_base_configuration=bedrock.CfnKnowledgeBase.VectorKnowledgeBaseConfigurationProperty(
-                    embedding_model_arn=f"arn:aws:bedrock:{self.region}::foundation-model/{cfg.embedding_model_id}"
+                    embedding_model_arn=f"arn:aws:bedrock:{self.region}::foundation-model/{cfg.embedding_model_id}",
+                    supplemental_data_storage_configuration=bedrock.CfnKnowledgeBase.SupplementalDataStorageConfigurationProperty(
+                        supplemental_data_storage_locations=[
+                            bedrock.CfnKnowledgeBase.SupplementalDataStorageLocationProperty(
+                                supplemental_data_storage_location_type="S3",
+                                s3_location=bedrock.CfnKnowledgeBase.S3LocationProperty(
+                                    uri=f"s3://{bucket.bucket_name}/supplemental/"
+                                ),
+                            )
+                        ]
+                    ),
                 ),
             ),
             storage_configuration=bedrock.CfnKnowledgeBase.StorageConfigurationProperty(
