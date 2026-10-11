@@ -80,6 +80,39 @@ class OpenSearchStack(Stack):
         self.collection.add_resource_dependency(self.encryption_policy)
         self.collection.add_resource_dependency(self.network_policy)
 
+        # The default CDK bootstrap role executes CloudFormation resource handlers.
+        cfn_execution_role_arn = self.format_arn(
+            service="iam",
+            region="",
+            resource="role",
+            resource_name=(f"cdk-hnb659fds-cfn-exec-role-{self.account}-{self.region}"),
+        )
+        self.data_access_policy = oss.CfnAccessPolicy(
+            self,
+            "AossIndexCreationAccessPolicy",
+            name=f"{collection_name}-cfn-access",
+            type="data",
+            policy=json.dumps(
+                [
+                    {
+                        "Rules": [
+                            {
+                                "ResourceType": "index",
+                                "Resource": [f"index/{collection_name}/{index_name}"],
+                                "Permission": [
+                                    "aoss:CreateIndex",
+                                    "aoss:DescribeIndex",
+                                    "aoss:UpdateIndex",
+                                    "aoss:DeleteIndex",
+                                ],
+                            }
+                        ],
+                        "Principal": [cfn_execution_role_arn],
+                    }
+                ]
+            ),
+        )
+
         self.index = oss.CfnIndex(
             self,
             "AossVectorIndex",
@@ -124,3 +157,5 @@ class OpenSearchStack(Stack):
 
         # Collection must exist before index
         self.index.add_resource_dependency(self.collection)
+        # The index data-plane API requires a policy before CloudFormation creates it.
+        self.index.add_resource_dependency(self.data_access_policy)

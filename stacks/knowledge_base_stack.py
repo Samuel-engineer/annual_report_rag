@@ -92,6 +92,7 @@ class KnowledgeBaseStack(Stack):
                                     "aoss:DescribeIndex",
                                     "aoss:ReadDocument",
                                     "aoss:WriteDocument",
+                                    "aoss:DeleteIndex",
                                 ],
                             },
                         ],
