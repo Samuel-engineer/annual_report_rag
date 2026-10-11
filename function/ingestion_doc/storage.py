@@ -1,12 +1,16 @@
 import json
+from json import JSONDecodeError
 from typing import Any, Protocol
-from urllib.parse import unquote_plus
+
+from botocore.exceptions import ClientError
 
 from .filings import Filing
 
 
 class S3Client(Protocol):
     def get_object(self, *, Bucket: str, Key: str) -> dict[str, Any]: ...
+
+    def head_object(self, *, Bucket: str, Key: str) -> dict[str, Any]: ...
 
     def put_object(
         self,
@@ -15,12 +19,7 @@ class S3Client(Protocol):
         Key: str,
         Body: bytes,
         ContentType: str,
-        Metadata: dict[str, str] | None = None,
     ) -> object: ...
-
-
-def decode_s3_object_key(key: str) -> str:
-    return unquote_plus(key)
 
 
 def load_submissions(s3_client: S3Client, bucket: str, key: str) -> dict[str, Any]:
@@ -39,15 +38,77 @@ def upload_filing(
     bucket_name: str,
     filing: Filing,
     body: bytes,
+    enterprise: str,
 ) -> None:
     s3_client.put_object(
         Bucket=bucket_name,
         Key=filing.s3_key,
         Body=body,
         ContentType="application/octet-stream",
-        Metadata={
-            "form": filing.form,
-            "filingDate": filing.filing_date.isoformat(),
-            "accessionNumber": filing.accession_number,
-        },
     )
+    metadata = {
+        "metadataAttributes": {
+            "enterprise": enterprise,
+            "filingDate": filing.filing_date.strftime("%d/%m/%Y"),
+            "reportingDate": (
+                filing.reporting_date.strftime("%d/%m/%Y")
+                if filing.reporting_date
+                else ""
+            ),
+            "filingUrl": filing.index_url,
+        }
+    }
+    s3_client.put_object(
+        Bucket=bucket_name,
+        Key=f"{filing.s3_key}.metadata.json",
+        Body=json.dumps(metadata, indent=2).encode("utf-8"),
+        ContentType="application/json",
+    )
+
+
+def filing_is_current(
+    s3_client: S3Client,
+    bucket_name: str,
+    filing: Filing,
+) -> bool:
+    metadata_key = f"{filing.s3_key}.metadata.json"
+    if not _object_exists(s3_client, bucket_name, filing.s3_key):
+        return False
+    if not _object_exists(s3_client, bucket_name, metadata_key):
+        return False
+
+    try:
+        response = s3_client.get_object(Bucket=bucket_name, Key=metadata_key)
+    except ClientError as error:
+        if _is_missing_object(error):
+            return False
+        raise
+    metadata_body = response["Body"].read()
+    try:
+        metadata = json.loads(metadata_body)
+    except (JSONDecodeError, UnicodeDecodeError):
+        return False
+    attributes = (
+        metadata.get("metadataAttributes") if isinstance(metadata, dict) else None
+    )
+    return (
+        isinstance(attributes, dict) and attributes.get("filingUrl") == filing.index_url
+    )
+
+
+def _object_exists(s3_client: S3Client, bucket_name: str, key: str) -> bool:
+    try:
+        s3_client.head_object(Bucket=bucket_name, Key=key)
+    except ClientError as error:
+        if _is_missing_object(error):
+            return False
+        raise
+    return True
+
+
+def _is_missing_object(error: ClientError) -> bool:
+    return error.response.get("Error", {}).get("Code") in {
+        "404",
+        "NoSuchKey",
+        "NotFound",
+    }

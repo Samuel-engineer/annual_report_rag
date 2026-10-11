@@ -4,16 +4,20 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Settings:
+    excel_bucket_name: str
     raw_bucket_name: str
     sec_user_agent: str
 
     @classmethod
     def from_env(cls) -> "Settings":
+        excel_bucket_name = os.getenv("EXCEL_BUCKET_NAME")
         raw_bucket_name = os.getenv("RAW_BUCKET_NAME")
         sec_user_agent = os.getenv(
             "SEC_USER_AGENT", "MyApp/1.0 (toaly-samuel-boris.tan@efrei.net)"
         )
 
+        if not excel_bucket_name:
+            raise RuntimeError("EXCEL_BUCKET_NAME must be configured.")
         if not raw_bucket_name:
             raise RuntimeError("RAW_BUCKET_NAME must be configured.")
         if not sec_user_agent or "@" not in sec_user_agent:
@@ -22,6 +26,7 @@ class Settings:
             )
 
         return cls(
+            excel_bucket_name=excel_bucket_name,
             raw_bucket_name=raw_bucket_name,
             sec_user_agent=sec_user_agent,
         )

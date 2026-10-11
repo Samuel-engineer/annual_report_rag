@@ -95,7 +95,10 @@ class KnowledgeBaseStack(Stack):
                                 ],
                             },
                         ],
-                        "Principal": [self.kb_role.role_arn],
+                        "Principal": [
+                            self.kb_role.role_arn,
+                            f"arn:aws:iam::{self.account}:root",
+                        ],
                     }
                 ]
             ),

@@ -40,18 +40,18 @@ def test_handler_fetches_and_uploads_each_enterprise_submissions_document(
         ("0000789019", SEC_USER_AGENT),
     ]
     assert result == {
-        "enterprises": {
-            "Amazon": {
-                "cik": "0001018724",
+        "submissions": [
+            {
+                "enterprise": "Amazon",
                 "bucket": "excel-bucket",
                 "key": "Amazon/CIK0001018724.json",
             },
-            "Société Amazon!": {
-                "cik": "0000789019",
+            {
+                "enterprise": "Société Amazon!",
                 "bucket": "excel-bucket",
                 "key": "Societe_Amazon/CIK0000789019.json",
             },
-        }
+        ],
     }
     assert uploaded_objects == [
         {
