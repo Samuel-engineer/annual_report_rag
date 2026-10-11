@@ -10,7 +10,6 @@ import pytest
 
 from function.knowledge_base_sync import main
 
-
 # ---------------------------------------------------------------------------
 # Fake Bedrock client helpers
 # ---------------------------------------------------------------------------
@@ -47,9 +46,7 @@ def test_handler_start_without_execution_id_omits_client_token(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """operation 'start' with no executionId key → start_ingestion_job called WITHOUT clientToken."""
-    fake_client = _FakeBedrockStart(
-        {"ingestionJob": {"ingestionJobId": "job-abc"}}
-    )
+    fake_client = _FakeBedrockStart({"ingestionJob": {"ingestionJobId": "job-abc"}})
     monkeypatch.setattr(main, "bedrock_client", fake_client)
     monkeypatch.setenv("KNOWLEDGE_BASE_ID", "kb-1")
     monkeypatch.setenv("DATA_SOURCE_ID", "ds-1")
@@ -86,9 +83,7 @@ def test_handler_start_raises_when_bedrock_returns_no_job_id(
     monkeypatch.setenv("DATA_SOURCE_ID", "ds-1")
 
     with pytest.raises(RuntimeError, match="ingestion job ID"):
-        main.lambda_handler(
-            {"operation": "start", "executionId": "exec-1"}, None
-        )
+        main.lambda_handler({"operation": "start", "executionId": "exec-1"}, None)
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +96,9 @@ def test_handler_status_raises_when_job_id_missing(
 ) -> None:
     """operation 'status' without jobId → ValueError matching 'jobId'."""
     monkeypatch.setattr(
-        main, "bedrock_client", _FakeBedrockStatus({"ingestionJob": {"status": "COMPLETE"}})
+        main,
+        "bedrock_client",
+        _FakeBedrockStatus({"ingestionJob": {"status": "COMPLETE"}}),
     )
     monkeypatch.setenv("KNOWLEDGE_BASE_ID", "kb-1")
     monkeypatch.setenv("DATA_SOURCE_ID", "ds-1")
@@ -131,9 +128,7 @@ def test_handler_client_token_is_sha256_of_execution_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """clientToken in start_ingestion_job equals sha256(b'my-id').hexdigest()."""
-    fake_client = _FakeBedrockStart(
-        {"ingestionJob": {"ingestionJobId": "job-xyz"}}
-    )
+    fake_client = _FakeBedrockStart({"ingestionJob": {"ingestionJobId": "job-xyz"}})
     monkeypatch.setattr(main, "bedrock_client", fake_client)
     monkeypatch.setenv("KNOWLEDGE_BASE_ID", "kb-1")
     monkeypatch.setenv("DATA_SOURCE_ID", "ds-1")

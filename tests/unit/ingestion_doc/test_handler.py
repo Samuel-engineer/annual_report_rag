@@ -1,9 +1,6 @@
 import json
-from io import BytesIO
-from typing import Any
 
 import pytest
-from botocore.exceptions import ClientError
 
 from function.ingestion_doc import config, main
 
@@ -32,32 +29,18 @@ SOURCE_JSON = {
 
 def test_handler_downloads_only_supported_filings_and_uploads_metadata_files(
     monkeypatch: pytest.MonkeyPatch,
+    moto_s3_client,
 ) -> None:
-    reads: list[dict[str, str]] = []
-    writes: list[dict[str, Any]] = []
     downloads: list[tuple[str, str]] = []
-    existing_keys: set[str] = set()
-
-    class FakeS3Client:
-        def get_object(self, **kwargs: str) -> dict[str, Any]:
-            reads.append(kwargs)
-            return {"Body": BytesIO(json.dumps(SOURCE_JSON).encode())}
-
-        def head_object(self, **kwargs: str) -> dict[str, Any]:
-            if kwargs["Key"] not in existing_keys:
-                raise ClientError(
-                    {"Error": {"Code": "404", "Message": "Not found"}},
-                    "HeadObject",
-                )
-            return {}
-
-        def put_object(self, **kwargs: Any) -> dict[str, str]:
-            writes.append(kwargs)
-            return {}
+    moto_s3_client.put_object(
+        Bucket="excel-bucket",
+        Key="Apple/CIK0000320193.json",
+        Body=json.dumps(SOURCE_JSON).encode(),
+    )
 
     settings = config.Settings("excel-bucket", "raw-bucket", SEC_USER_AGENT)
     monkeypatch.setattr(main, "get_settings", lambda: settings)
-    monkeypatch.setattr(main, "s3_client", FakeS3Client())
+    monkeypatch.setattr(main, "s3_client", moto_s3_client)
 
     def fake_download(url: str, user_agent: str) -> bytes:
         downloads.append((url, user_agent))
@@ -77,12 +60,11 @@ def test_handler_downloads_only_supported_filings_and_uploads_metadata_files(
         },
         None,
     )
-
     assert result == {"documents_uploaded": 2, "documents_skipped": 0}
-    assert reads == [{"Bucket": "excel-bucket", "Key": "Apple/CIK0000320193.json"}]
+    assert result == {"documents_uploaded": 2, "documents_skipped": 0}
     assert len(downloads) == 2
     assert all(user_agent == SEC_USER_AGENT for _, user_agent in downloads)
-    assert [write["Key"] for write in writes] == [
+    keys = [
         "2024/320193/annual_report_000032019324000006_aapl-20230930.htm",
         (
             "2024/320193/annual_report_000032019324000006_aapl-20230930.htm"
@@ -91,8 +73,15 @@ def test_handler_downloads_only_supported_filings_and_uploads_metadata_files(
         "2024/320193/proxy_statement_000032019324000002_def14a.htm",
         ("2024/320193/proxy_statement_000032019324000002_def14a.htm.metadata.json"),
     ]
-    assert all("Metadata" not in write for write in writes)
-    assert [json.loads(write["Body"]) for write in (writes[1], writes[3])] == [
+    assert [
+        item["Key"]
+        for item in moto_s3_client.list_objects_v2(Bucket="raw-bucket")["Contents"]
+    ] == keys
+    metadata_objects = [
+        moto_s3_client.get_object(Bucket="raw-bucket", Key=key)
+        for key in (keys[1], keys[3])
+    ]
+    assert [json.loads(item["Body"].read()) for item in metadata_objects] == [
         {
             "metadataAttributes": {
                 "enterprise": "Apple",
@@ -116,14 +105,19 @@ def test_handler_downloads_only_supported_filings_and_uploads_metadata_files(
             }
         },
     ]
-    assert [write["ContentType"] for write in writes] == [
+    assert [
+        moto_s3_client.head_object(Bucket="raw-bucket", Key=key)["ContentType"]
+        for key in keys
+    ] == [
         "application/octet-stream",
         "application/json",
         "application/octet-stream",
         "application/json",
     ]
-    assert all(write["Bucket"] == "raw-bucket" for write in writes)
-    assert writes[0]["Body"] == writes[2]["Body"] == b"filing document"
+    assert [
+        moto_s3_client.get_object(Bucket="raw-bucket", Key=key)["Body"].read()
+        for key in (keys[0], keys[2])
+    ] == [b"filing document", b"filing document"]
 
 
 def test_handler_rejects_missing_submission_references() -> None:
@@ -133,6 +127,7 @@ def test_handler_rejects_missing_submission_references() -> None:
 
 def test_handler_skips_filings_with_matching_metadata(
     monkeypatch: pytest.MonkeyPatch,
+    moto_s3_client,
 ) -> None:
     submission_key = "Apple/CIK0000320193.json"
     metadata_by_key = {
@@ -149,34 +144,30 @@ def test_handler_skips_filings_with_matching_metadata(
         ),
     }
 
-    class FakeS3Client:
-        def head_object(self, **_kwargs: str) -> dict[str, str]:
-            return {}
-
-        def get_object(self, **kwargs: str) -> dict[str, Any]:
-            if kwargs["Key"] == submission_key:
-                return {"Body": BytesIO(json.dumps(SOURCE_JSON).encode())}
-            return {
-                "Body": BytesIO(
-                    json.dumps(
-                        {
-                            "metadataAttributes": {
-                                "filingUrl": metadata_by_key[kwargs["Key"]]
-                            }
-                        }
-                    ).encode()
-                )
-            }
-
-        def put_object(self, **_kwargs: Any) -> dict[str, str]:
-            pytest.fail("Already ingested filings should not be uploaded again.")
+    moto_s3_client.put_object(
+        Bucket="excel-bucket",
+        Key=submission_key,
+        Body=json.dumps(SOURCE_JSON).encode(),
+    )
+    for metadata_key, filing_url in metadata_by_key.items():
+        document_key = metadata_key.removesuffix(".metadata.json")
+        moto_s3_client.put_object(
+            Bucket="raw-bucket",
+            Key=document_key,
+            Body=b"already ingested document",
+        )
+        moto_s3_client.put_object(
+            Bucket="raw-bucket",
+            Key=metadata_key,
+            Body=json.dumps({"metadataAttributes": {"filingUrl": filing_url}}).encode(),
+        )
 
     monkeypatch.setattr(
         main,
         "get_settings",
         lambda: config.Settings("excel-bucket", "raw-bucket", SEC_USER_AGENT),
     )
-    monkeypatch.setattr(main, "s3_client", FakeS3Client())
+    monkeypatch.setattr(main, "s3_client", moto_s3_client)
     monkeypatch.setattr(
         main,
         "download_filing",

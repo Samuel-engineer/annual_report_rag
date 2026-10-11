@@ -3,7 +3,6 @@ Extended tests for function/ingestion_doc/sec_client.py — redirect check (line
 and plain-body (non-gzip) path.
 """
 
-import gzip
 from typing import Any, Self
 
 import pytest

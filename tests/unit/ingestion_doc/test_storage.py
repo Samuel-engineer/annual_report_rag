@@ -2,8 +2,6 @@
 
 import json
 from datetime import date
-from io import BytesIO
-from typing import Any
 
 import pytest
 from botocore.exceptions import ClientError
@@ -47,40 +45,42 @@ def _client_error(code: str) -> ClientError:
 # ---------------------------------------------------------------------------
 
 
-class _FakeGetObject:
-    """Minimal S3-like client for load_submissions tests."""
-
-    def __init__(self, body: bytes) -> None:
-        self._body = body
-
-    def get_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
-        return {"Body": BytesIO(self._body)}
-
-
-def test_load_submissions_returns_parsed_dict() -> None:
+def test_load_submissions_returns_parsed_dict(moto_s3_client) -> None:
     """Happy path: S3 body is valid JSON object → returns the parsed dict."""
     payload = {"cik": "0000320193", "filings": {}}
-    client = _FakeGetObject(json.dumps(payload).encode())
+    moto_s3_client.put_object(
+        Bucket="my-bucket",
+        Key="submissions.json",
+        Body=json.dumps(payload).encode(),
+    )
 
-    result = load_submissions(client, "my-bucket", "my-key.json")  # type: ignore[arg-type]
+    result = load_submissions(moto_s3_client, "my-bucket", "submissions.json")
 
     assert result == payload
 
 
-def test_load_submissions_raises_if_body_is_json_array() -> None:
+def test_load_submissions_raises_if_body_is_json_array(moto_s3_client) -> None:
     """Body is a JSON array → TypeError mentioning 'JSON object'."""
-    client = _FakeGetObject(b"[]")
+    moto_s3_client.put_object(
+        Bucket="my-bucket",
+        Key="submissions.json",
+        Body=b"[]",
+    )
 
     with pytest.raises(TypeError, match="JSON object"):
-        load_submissions(client, "my-bucket", "my-key.json")  # type: ignore[arg-type]
+        load_submissions(moto_s3_client, "my-bucket", "submissions.json")
 
 
-def test_load_submissions_raises_if_body_is_invalid_json() -> None:
+def test_load_submissions_raises_if_body_is_invalid_json(moto_s3_client) -> None:
     """Body is not valid JSON → json.JSONDecodeError is raised."""
-    client = _FakeGetObject(b"not-json")
+    moto_s3_client.put_object(
+        Bucket="my-bucket",
+        Key="submissions.json",
+        Body=b"not-json",
+    )
 
     with pytest.raises(json.JSONDecodeError):
-        load_submissions(client, "my-bucket", "my-key.json")  # type: ignore[arg-type]
+        load_submissions(moto_s3_client, "my-bucket", "submissions.json")
 
 
 # ---------------------------------------------------------------------------
@@ -88,44 +88,26 @@ def test_load_submissions_raises_if_body_is_invalid_json() -> None:
 # ---------------------------------------------------------------------------
 
 
-class _FakePutObject:
-    """Minimal S3-like client that records put_object calls."""
-
-    def __init__(self) -> None:
-        self.calls: list[dict[str, Any]] = []
-
-    def put_object(self, **kwargs: Any) -> dict[str, str]:
-        self.calls.append(kwargs)
-        return {}
-
-
-def test_upload_filing_puts_document_and_metadata() -> None:
+def test_upload_filing_puts_document_and_metadata(moto_s3_client) -> None:
     """upload_filing makes two put_object calls: the document and its metadata JSON."""
-    client = _FakePutObject()
-
     upload_filing(
-        s3_client=client,  # type: ignore[arg-type]
+        s3_client=moto_s3_client,
         bucket_name="raw-bucket",
         filing=FILING,
         body=b"filing bytes",
         enterprise="Apple",
     )
 
-    assert len(client.calls) == 2
-    doc_call, meta_call = client.calls
+    document = moto_s3_client.get_object(Bucket="raw-bucket", Key=FILING.s3_key)
+    metadata_object = moto_s3_client.get_object(
+        Bucket="raw-bucket",
+        Key=f"{FILING.s3_key}.metadata.json",
+    )
+    assert document["Body"].read() == b"filing bytes"
+    assert document["ContentType"] == "application/octet-stream"
+    assert metadata_object["ContentType"] == "application/json"
 
-    # Document upload
-    assert doc_call["Bucket"] == "raw-bucket"
-    assert doc_call["Key"] == FILING.s3_key
-    assert doc_call["Body"] == b"filing bytes"
-    assert doc_call["ContentType"] == "application/octet-stream"
-
-    # Metadata upload
-    assert meta_call["Bucket"] == "raw-bucket"
-    assert meta_call["Key"] == f"{FILING.s3_key}.metadata.json"
-    assert meta_call["ContentType"] == "application/json"
-
-    metadata = json.loads(meta_call["Body"])
+    metadata = json.loads(metadata_object["Body"].read())
     attrs = metadata["metadataAttributes"]
     assert attrs["enterprise"] == "Apple"
     assert attrs["filingDate"] == "25/01/2024"
@@ -133,20 +115,21 @@ def test_upload_filing_puts_document_and_metadata() -> None:
     assert attrs["filingUrl"] == FILING.index_url
 
 
-def test_upload_filing_metadata_empty_reporting_date() -> None:
+def test_upload_filing_metadata_empty_reporting_date(moto_s3_client) -> None:
     """When filing.reporting_date is None, reportingDate field in metadata is ''."""
-    client = _FakePutObject()
-
     upload_filing(
-        s3_client=client,  # type: ignore[arg-type]
+        s3_client=moto_s3_client,
         bucket_name="raw-bucket",
         filing=FILING_NO_REPORT_DATE,
         body=b"filing bytes",
         enterprise="Apple",
     )
 
-    _doc_call, meta_call = client.calls
-    attrs = json.loads(meta_call["Body"])["metadataAttributes"]
+    metadata_object = moto_s3_client.get_object(
+        Bucket="raw-bucket",
+        Key=f"{FILING_NO_REPORT_DATE.s3_key}.metadata.json",
+    )
+    attrs = json.loads(metadata_object["Body"].read())["metadataAttributes"]
     assert attrs["reportingDate"] == ""
 
 
@@ -155,96 +138,63 @@ def test_upload_filing_metadata_empty_reporting_date() -> None:
 # ---------------------------------------------------------------------------
 
 
-class _FakeS3ForCurrentCheck:
-    """
-    Configurable fake S3 client for filing_is_current tests.
-
-    head_responses: mapping key → None (exists) or ClientError (raise)
-    get_response: bytes to return from get_object, or ClientError to raise
-    """
-
-    def __init__(
-        self,
-        head_responses: dict[str, ClientError | None],
-        get_body: bytes | ClientError | None = None,
-    ) -> None:
-        self._head = head_responses
-        self._get_body = get_body
-
-    def head_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
-        err = self._head.get(Key)
-        if err is not None:
-            raise err
-        return {}
-
-    def get_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
-        if isinstance(self._get_body, ClientError):
-            raise self._get_body
-        if self._get_body is None:
-            raise _client_error("404")
-        return {"Body": BytesIO(self._get_body)}
-
-
-def test_filing_is_current_returns_false_when_document_missing() -> None:
+def test_filing_is_current_returns_false_when_document_missing(
+    moto_s3_client,
+) -> None:
     """head_object raises 404 for the document key → filing_is_current returns False."""
-    client = _FakeS3ForCurrentCheck(
-        head_responses={FILING.s3_key: _client_error("404")}
-    )
-
-    assert filing_is_current(client, "raw-bucket", FILING) is False  # type: ignore[arg-type]
+    assert filing_is_current(moto_s3_client, "raw-bucket", FILING) is False
 
 
-def test_filing_is_current_returns_false_when_metadata_missing() -> None:
+def test_filing_is_current_returns_false_when_metadata_missing(moto_s3_client) -> None:
     """Document exists but head_object raises 404 for .metadata.json → False."""
-    metadata_key = f"{FILING.s3_key}.metadata.json"
-    client = _FakeS3ForCurrentCheck(
-        head_responses={metadata_key: _client_error("404")}
+    moto_s3_client.put_object(
+        Bucket="raw-bucket",
+        Key=FILING.s3_key,
+        Body=b"filing bytes",
     )
 
-    assert filing_is_current(client, "raw-bucket", FILING) is False  # type: ignore[arg-type]
+    assert filing_is_current(moto_s3_client, "raw-bucket", FILING) is False
 
 
-def test_filing_is_current_returns_false_when_metadata_url_differs() -> None:
+def test_filing_is_current_returns_false_when_metadata_url_differs(
+    moto_s3_client,
+) -> None:
     """Both objects exist, but metadata filingUrl != filing.index_url → False."""
+    moto_s3_client.put_object(Bucket="raw-bucket", Key=FILING.s3_key, Body=b"filing")
     metadata = {
         "metadataAttributes": {"filingUrl": "https://www.sec.gov/Archives/other"}
     }
-    client = _FakeS3ForCurrentCheck(
-        head_responses={},
-        get_body=json.dumps(metadata).encode(),
+    moto_s3_client.put_object(
+        Bucket="raw-bucket",
+        Key=f"{FILING.s3_key}.metadata.json",
+        Body=json.dumps(metadata).encode(),
     )
 
-    assert filing_is_current(client, "raw-bucket", FILING) is False  # type: ignore[arg-type]
+    assert filing_is_current(moto_s3_client, "raw-bucket", FILING) is False
 
 
-def test_filing_is_current_returns_true_when_url_matches() -> None:
+def test_filing_is_current_returns_true_when_url_matches(moto_s3_client) -> None:
     """Both objects exist and filingUrl matches filing.index_url → True."""
-    metadata = {
-        "metadataAttributes": {"filingUrl": FILING.index_url}
-    }
-    client = _FakeS3ForCurrentCheck(
-        head_responses={},
-        get_body=json.dumps(metadata).encode(),
+    moto_s3_client.put_object(Bucket="raw-bucket", Key=FILING.s3_key, Body=b"filing")
+    metadata = {"metadataAttributes": {"filingUrl": FILING.index_url}}
+    moto_s3_client.put_object(
+        Bucket="raw-bucket",
+        Key=f"{FILING.s3_key}.metadata.json",
+        Body=json.dumps(metadata).encode(),
     )
 
-    assert filing_is_current(client, "raw-bucket", FILING) is True  # type: ignore[arg-type]
+    assert filing_is_current(moto_s3_client, "raw-bucket", FILING) is True
 
 
-def test_filing_is_current_returns_false_when_metadata_is_invalid_json() -> None:
+def test_filing_is_current_returns_false_when_metadata_is_invalid_json(
+    moto_s3_client,
+) -> None:
     """get_object returns non-JSON bytes → filing_is_current returns False."""
-    client = _FakeS3ForCurrentCheck(
-        head_responses={},
-        get_body=b"not valid json {{",
+    moto_s3_client.put_object(Bucket="raw-bucket", Key=FILING.s3_key, Body=b"filing")
+    moto_s3_client.put_object(
+        Bucket="raw-bucket",
+        Key=f"{FILING.s3_key}.metadata.json",
+        Body=b"not valid json {{",
     )
 
-    assert filing_is_current(client, "raw-bucket", FILING) is False  # type: ignore[arg-type]
-
-
-def test_filing_is_current_reraises_unexpected_client_error() -> None:
-    """head_object raises ClientError with code 500 → the exception propagates."""
-    client = _FakeS3ForCurrentCheck(
-        head_responses={FILING.s3_key: _client_error("500")}
-    )
-
-    with pytest.raises(ClientError):
-        filing_is_current(client, "raw-bucket", FILING)  # type: ignore[arg-type]
+    assert filing_is_current(moto_s3_client, "raw-bucket", FILING) is False

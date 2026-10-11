@@ -3,14 +3,11 @@ Extended tests for function/ingestion_doc/main.py — covers _submission_locatio
 error paths and handler validation branches not covered by test_handler.py.
 """
 
-import json
-from io import BytesIO
 from typing import Any
 
 import pytest
 
 from function.ingestion_doc import config, main
-
 
 SEC_USER_AGENT = "AnnualReportRag/1.0 (test@example.com)"
 
@@ -42,7 +39,9 @@ def test_handler_rejects_empty_submissions_list(
 ) -> None:
     """submissions: [] → ValueError matching 'submissions list'."""
     monkeypatch.setattr(
-        main, "get_settings", lambda: config.Settings("excel-bucket", "raw-bucket", SEC_USER_AGENT)
+        main,
+        "get_settings",
+        lambda: config.Settings("excel-bucket", "raw-bucket", SEC_USER_AGENT),
     )
     monkeypatch.setattr(main, "s3_client", _NoOpS3Client())
 
@@ -55,7 +54,9 @@ def test_handler_rejects_non_list_submissions(
 ) -> None:
     """submissions: 'wrong' (string) → ValueError matching 'submissions list'."""
     monkeypatch.setattr(
-        main, "get_settings", lambda: config.Settings("excel-bucket", "raw-bucket", SEC_USER_AGENT)
+        main,
+        "get_settings",
+        lambda: config.Settings("excel-bucket", "raw-bucket", SEC_USER_AGENT),
     )
     monkeypatch.setattr(main, "s3_client", _NoOpS3Client())
 

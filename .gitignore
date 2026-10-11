@@ -16,6 +16,9 @@ wheels/
 # AWS CDK files
 cdk.out/
 
+# Agent 
+.agents/
+
 # sam files
 .aws-sam/
 build.toml

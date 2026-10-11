@@ -3,9 +3,7 @@ Tests for the S3 ClientError re-raise paths in storage.filing_is_current
 (covers non-404 head_object and get_object errors).
 """
 
-import json
 from datetime import date
-from io import BytesIO
 from typing import Any
 
 import pytest

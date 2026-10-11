@@ -10,7 +10,6 @@ import pytest
 
 from function.ingestion_doc.filings import Filing, extract_filings
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
